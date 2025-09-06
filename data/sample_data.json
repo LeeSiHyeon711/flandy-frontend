@@ -1,0 +1,146 @@
+{
+  "user_profile": {
+    "name": "김플랜디",
+    "email": "user@plandy.com",
+    "work_start": "09:00",
+    "work_end": "18:00",
+    "lunch_start": "12:00",
+    "lunch_end": "13:00"
+  },
+  "daily_schedule": [
+    {
+      "id": 1,
+      "time": "09:00",
+      "task": "아침 회의",
+      "category": "업무",
+      "duration": 60,
+      "priority": "high",
+      "status": "completed",
+      "description": "팀 일일 스탠드업 미팅"
+    },
+    {
+      "id": 2,
+      "time": "10:00",
+      "task": "프로젝트 A 작업",
+      "category": "업무",
+      "duration": 120,
+      "priority": "high",
+      "status": "in_progress",
+      "description": "새로운 기능 개발"
+    },
+    {
+      "id": 3,
+      "time": "12:00",
+      "task": "점심 식사",
+      "category": "휴식",
+      "duration": 60,
+      "priority": "medium",
+      "status": "pending",
+      "description": "팀과 함께 점심 식사"
+    },
+    {
+      "id": 4,
+      "time": "13:00",
+      "task": "프로젝트 B 작업",
+      "category": "업무",
+      "duration": 90,
+      "priority": "medium",
+      "status": "pending",
+      "description": "버그 수정 및 테스트"
+    },
+    {
+      "id": 5,
+      "time": "14:30",
+      "task": "커피 브레이크",
+      "category": "휴식",
+      "duration": 15,
+      "priority": "low",
+      "status": "pending",
+      "description": "커피 한 잔과 함께 휴식"
+    },
+    {
+      "id": 6,
+      "time": "14:45",
+      "task": "이메일 확인",
+      "category": "업무",
+      "duration": 30,
+      "priority": "medium",
+      "status": "pending",
+      "description": "오후 이메일 확인 및 응답"
+    },
+    {
+      "id": 7,
+      "time": "15:15",
+      "task": "팀 미팅",
+      "category": "업무",
+      "duration": 45,
+      "priority": "high",
+      "status": "pending",
+      "description": "프로젝트 진행 상황 논의"
+    },
+    {
+      "id": 8,
+      "time": "16:00",
+      "task": "개인 업무",
+      "category": "업무",
+      "duration": 60,
+      "priority": "medium",
+      "status": "pending",
+      "description": "개인적인 업무 처리"
+    },
+    {
+      "id": 9,
+      "time": "17:00",
+      "task": "하루 마무리",
+      "category": "업무",
+      "duration": 30,
+      "priority": "medium",
+      "status": "pending",
+      "description": "하루 업무 정리 및 내일 계획"
+    }
+  ],
+  "worklife_metrics": {
+    "current_score": 85,
+    "weekly_average": 82,
+    "work_hours": 7.5,
+    "break_hours": 1.25,
+    "overtime_hours": 0.5,
+    "stress_level": "medium"
+  },
+  "habits": [
+    {
+      "name": "커피",
+      "target": 3,
+      "current": 2,
+      "unit": "잔"
+    },
+    {
+      "name": "물 마시기",
+      "target": 8,
+      "current": 5,
+      "unit": "잔"
+    },
+    {
+      "name": "운동",
+      "target": 30,
+      "current": 0,
+      "unit": "분"
+    }
+  ],
+  "notifications": [
+    {
+      "id": 1,
+      "type": "reminder",
+      "message": "10분 후 '팀 미팅'이 시작됩니다.",
+      "time": "15:05",
+      "read": false
+    },
+    {
+      "id": 2,
+      "type": "suggestion",
+      "message": "워라벨 점수가 85점입니다. 훌륭해요!",
+      "time": "14:00",
+      "read": true
+    }
+  ]
+}
