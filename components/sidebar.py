@@ -1,228 +1,141 @@
-"""
-사이드바 컴포넌트
-사용자 현황, 대화 목록, 설정 등을 담당
-"""
-
 import streamlit as st
-from datetime import datetime
-from utils.data_utils import load_sample_data, calculate_worklife_score
+import base64
+import os
+from components.auth import logout, get_current_user
 
+def get_image_base64(image_path):
+    """이미지를 base64로 인코딩"""
+    try:
+        if os.path.exists(image_path):
+            with open(image_path, "rb") as img_file:
+                return base64.b64encode(img_file.read()).decode()
+        else:
+            # 이미지가 없으면 빈 문자열 반환
+            return ""
+    except Exception as e:
+        st.error(f"이미지 로드 오류: {e}")
+        return ""
 
-def render_sidebar():
-    """사이드바 렌더링"""
-    with st.sidebar:
-        # 사이드바 전체 스타일링 (한 번만 적용)
-        st.markdown("""
-        <style>
-        /* 사이드바 전체 리셋 */
-        .sidebar * {
-            margin: 0 !important;
-            padding: 0 !important;
-        }
-        
-        /* 사이드바 컨테이너 간격 강제 고정 */
-        .sidebar .element-container {
-            margin-bottom: 20px !important;
-            margin-top: 0 !important;
-            padding: 0 !important;
-        }
-        
-        /* 사이드바 첫 번째 요소 */
-        .sidebar .element-container:first-child {
-            margin-top: 0 !important;
-        }
-        
-        /* 사이드바 마지막 요소 */
-        .sidebar .element-container:last-child {
-            margin-bottom: 0 !important;
-        }
-        
-        /* 대화방 버튼 스타일링 */
-        div[data-testid="stButton"] > button {
-            text-align: left !important;
-            padding: 12px 16px !important;
-            height: auto !important;
-            min-height: 70px !important;
-            border-radius: 8px !important;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-            margin: 0 !important;
-        }
-        
-        /* 대화방 버튼 컨테이너 간격 강제 고정 */
-        div[data-testid="stButton"] {
-            margin-bottom: 8px !important;
-            margin-top: 0 !important;
-        }
-        
-        /* 선택된 대화방 버튼 */
-        div[data-testid="stButton"] > button[kind="primary"] {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-            border: none !important;
-            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3) !important;
-            color: white !important;
-        }
-        
-        /* 일반 대화방 버튼 - Streamlit 기본 스타일 강제 덮어쓰기 */
-        .sidebar div[data-testid="stButton"] > button[kind="secondary"],
-        .sidebar div[data-testid="stButton"] button[kind="secondary"],
-        .sidebar button[kind="secondary"],
-        .sidebar .stButton > button[kind="secondary"] {
-            background: rgba(255, 255, 255, 0.05) !important;
-            border: 0px solid transparent !important;
-            border-width: 0px !important;
-            border-style: none !important;
-            border-color: transparent !important;
-            color: #e0e0e0 !important;
-            outline: none !important;
-            box-shadow: none !important;
-        }
-        
-        .sidebar div[data-testid="stButton"] > button[kind="secondary"]:hover,
-        .sidebar div[data-testid="stButton"] button[kind="secondary"]:hover,
-        .sidebar button[kind="secondary"]:hover,
-        .sidebar .stButton > button[kind="secondary"]:hover {
-            background: rgba(255, 255, 255, 0.1) !important;
-            border: 0px solid transparent !important;
-            border-width: 0px !important;
-            border-style: none !important;
-            border-color: transparent !important;
-            outline: none !important;
-            box-shadow: none !important;
-        }
-        
-        /* 컬럼 간격 강제 고정 */
-        .stColumns > div {
-            margin: 0 !important;
-            padding: 0 !important;
-        }
-        
-        /* 마크다운 헤더 간격 강제 고정 */
-        .sidebar h3 {
-            margin-bottom: 12px !important;
-            margin-top: 0 !important;
-        }
-        
-        /* 이미지 간격 강제 고정 */
-        .sidebar img {
-            margin-bottom: 8px !important;
-            margin-top: 0 !important;
-        }
-        
-        /* expander 간격 강제 고정 */
-        .sidebar .streamlit-expander {
-            margin-bottom: 20px !important;
-            margin-top: 0 !important;
-        }
-        
-        /* 모든 텍스트 요소 간격 리셋 */
-        .sidebar p, .sidebar div, .sidebar span {
-            margin: 0 !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-        
-        # 플랜디 로고 (가운데 정렬, 고정 크기)
-        col1, col2, col3 = st.columns([0.5, 2, 0.5])
-        with col2:
-            st.image("assets/plandy.png", width=180)
-
-        st.markdown('<p style="text-align: center; font-size: 16px; margin: 5px 5px 15px 5px;">"계획은 유연하게, 하루는 완벽하게!"</p>', unsafe_allow_html=True)
-        
-        # 오늘의 현황
-        render_today_status()
-        
-        # 컨테이너 표시 설정
-        render_container_settings()
-        
-        # 대화 목록
-        render_conversation_list()
-
-
-def render_today_status():
-    """오늘의 현황 섹션"""
-    with st.expander("📊 오늘의 현황", expanded=True):
-        # 현재 시간 표시
-        current_time = datetime.now().strftime("%H:%M")
-        st.metric("현재 시간", current_time)
-        
-        # 워라벨 점수
-        df = load_sample_data()
-        worklife_score = calculate_worklife_score(df)
-        
-        # 워라벨 점수를 다크모드 호환으로 표시
-        st.markdown("**워라벨 점수**")
-        st.markdown(f"""
-        <div style="text-align: center; margin: 0.5rem 0;">
-            <div style="font-size: 2rem; font-weight: bold; color: #4A90E2; line-height: 1.2;">{worklife_score}/100</div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # 완료된 일정을 마지막에 표시
-        completed_tasks = len(df[df['time'] <= current_time])
-        total_tasks = len(df)
-        progress = completed_tasks / total_tasks if total_tasks > 0 else 0
-        st.progress(progress)
-        st.caption(f"완료된 일정: {completed_tasks}/{total_tasks}")
-
-
-def render_container_settings():
-    """컨테이너 표시 설정"""
-    with st.expander("🎛️ 컨테이너 표시 설정", expanded=False):
-        # 각 컨테이너 토글 - 세션 상태에서 초기값 가져오기
-        show_chart = st.checkbox(
-            "📊 24시간 생활계획표", 
-            value=st.session_state.get('show_chart', True), 
-            key="show_chart"
-        )
-        show_table = st.checkbox(
-            "📋 상세 일정", 
-            value=st.session_state.get('show_table', True), 
-            key="show_table"
-        ) 
-        show_analysis = st.checkbox(
-            "📈 워라벨 분석", 
-            value=st.session_state.get('show_analysis', True), 
-            key="show_analysis"
-        )
-
-
-def render_conversation_list():
-    """대화 목록 렌더링 - ChatGPT 스타일"""
-    # 대화 목록 헤더와 + 버튼
-    col1, col2 = st.columns([4, 0.5])
-    with col1:
-        st.markdown("### 💬 대화 목록")
-    with col2:
-        if st.button("✚", key="new_chat_btn", help="새 대화방 만들기"):
-            st.session_state.current_page = "chat"
-            st.session_state.selected_conversation = "새 대화방"
-            st.rerun()
+def show_sidebar():
+    """사이드바 표시 및 페이지 선택"""
     
-    # 대화방 목록
-    conversations = [
-        {"name": "일정 관리", "last_msg": "오늘 일정을 확인해주세요"},
-        {"name": "워라벨 상담", "last_msg": "워라벨 점수를 개선해보세요"},
-        {"name": "목표 설정", "last_msg": "이번 주 목표를 설정해보세요"},
-        {"name": "분석 리포트", "last_msg": "주간 리포트를 확인하세요"}
-    ]
+    # Plandy 로고 표시 (사이드바 상단 중앙정렬)
+    st.sidebar.markdown("""
+    <div style="text-align: center; margin-bottom: 2rem;">
+        <img src="data:image/png;base64,{}" width="120" style="margin: 0 auto;">
+    </div>
+    """.format(get_image_base64("assets/plandy-logo.png")), unsafe_allow_html=True)
     
-    # 현재 선택된 대화방 (채팅 페이지일 때만 활성화)
-    current_page = st.session_state.get('current_page', 'dashboard')
-    selected_conv = st.session_state.get('selected_conversation', None)
-    
-    # 채팅 페이지가 아니면 선택된 대화방 없음
-    if current_page != 'chat':
-        selected_conv = None
-    
-    # ChatGPT 스타일의 대화방 버튼들
-    for i, conv in enumerate(conversations):
-        is_selected = conv['name'] == selected_conv
+    # 사용자 정보 표시 또는 로그인 폼
+    user = get_current_user()
+    if user:
+        # 로그인된 상태: 사용자 정보, 메뉴, 로그아웃, 서버 상태 표시
+        st.sidebar.markdown(f"### 안녕하세요, {user.get('name', '사용자')}님!")
+        st.sidebar.markdown(f"📧 {user.get('email', '')}")
+        st.sidebar.markdown("---")
         
-        # 보기 좋은 버튼 텍스트 (시간 제거)
-        button_text = f"[{conv['name']}] {conv['last_msg']}"
+        # 메뉴 항목들
+        menu_items = [
+            "대시보드",
+            "태스크 관리", 
+            "스케줄 관리",
+            "워라밸 분석",
+            "AI 어시스턴트"
+        ]
         
-        # 버튼 클릭 이벤트
-        if st.button(button_text, key=f"conv_btn_{i}", type="primary" if is_selected else "secondary", use_container_width=True):
-            st.session_state.current_page = "chat"
-            st.session_state.selected_conversation = conv['name']
-            st.rerun()
+        selected_page = st.sidebar.selectbox("메뉴 선택", menu_items, key="page_selector")
+        
+        st.sidebar.markdown("---")
+        
+        # 로그아웃 버튼
+        if st.sidebar.button("로그아웃", use_container_width=True):
+            logout()
+        
+        st.sidebar.markdown("---")
+        
+        # 서버 상태 표시
+        st.sidebar.markdown("### 서버 상태")
+        try:
+            import requests
+            response = requests.get("http://127.0.0.1:8000/api/health", timeout=2)
+            if response.status_code == 200:
+                st.sidebar.success("🟢 서버 연결됨")
+            else:
+                st.sidebar.error("🔴 서버 오류")
+        except:
+            st.sidebar.error("🔴 서버 연결 실패")
+        
+        return selected_page
+    else:
+        # 로그인되지 않은 상태: 로그인/회원가입 폼만 표시
+        st.sidebar.markdown("### 로그인")
+        
+        with st.sidebar.form("sidebar_login_form"):
+            email = st.text_input("이메일", placeholder="kim@plandy.kr")
+            password = st.text_input("비밀번호", type="password", placeholder="password123")
+            
+            login_submitted = st.form_submit_button("로그인", use_container_width=True)
+            demo_login = st.form_submit_button("데모 로그인", use_container_width=True)
+        
+        if login_submitted:
+            if email and password:
+                from components.api_client import PlandyAPIClient
+                api_client = PlandyAPIClient()
+                if api_client.login(email, password):
+                    st.session_state.user_token = api_client.token
+                    user_info = api_client.get_user_info()
+                    if user_info:
+                        st.session_state.user_info = user_info
+                        st.sidebar.success(f"환영합니다, {user_info.get('name', '사용자')}님!")
+                        st.rerun()
+                else:
+                    st.sidebar.error("로그인에 실패했습니다.")
+            else:
+                st.sidebar.error("이메일과 비밀번호를 입력해주세요.")
+        
+        if demo_login:
+            from components.api_client import PlandyAPIClient
+            api_client = PlandyAPIClient()
+            if api_client.login("kim@plandy.kr", "password123"):
+                st.session_state.user_token = api_client.token
+                user_info = api_client.get_user_info()
+                if user_info:
+                    st.session_state.user_info = user_info
+                    st.sidebar.success(f"데모 계정으로 로그인되었습니다!")
+                    st.rerun()
+            else:
+                st.sidebar.error("데모 계정 로그인에 실패했습니다.")
+        
+        st.sidebar.markdown("---")
+        
+        # 회원가입 섹션을 접을 수 있게 만들기
+        with st.sidebar.expander("회원가입", expanded=False):
+            with st.form("sidebar_register_form"):
+                name = st.text_input("이름", placeholder="홍길동")
+                email_reg = st.text_input("이메일", placeholder="user@example.com")
+                password_reg = st.text_input("비밀번호", type="password")
+                password_confirm = st.text_input("비밀번호 확인", type="password")
+                
+                register_submitted = st.form_submit_button("회원가입", use_container_width=True)
+            
+            if register_submitted:
+                if not all([name, email_reg, password_reg, password_confirm]):
+                    st.error("모든 필드를 입력해주세요.")
+                elif password_reg != password_confirm:
+                    st.error("비밀번호가 일치하지 않습니다.")
+                elif len(password_reg) < 6:
+                    st.error("비밀번호는 6자 이상이어야 합니다.")
+                else:
+                    from components.api_client import PlandyAPIClient
+                    api_client = PlandyAPIClient()
+                    if api_client.register(email_reg, password_reg, name, password_confirm):
+                        st.session_state.user_token = api_client.token
+                        user_info = api_client.get_user_info()
+                        if user_info:
+                            st.session_state.user_info = user_info
+                            st.success(f"회원가입이 완료되었습니다!")
+                            st.rerun()
+                    else:
+                        st.error("회원가입에 실패했습니다.")
+        
+        return None  # 로그인되지 않은 상태에서는 페이지 선택 없음
