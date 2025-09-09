@@ -252,14 +252,108 @@ class PlandyAPIClient:
         return response and response.get("success")
     
     # AI 관련 메서드
-    def send_ai_message(self, message: str, context: Optional[Dict] = None) -> Optional[Dict]:
+    def send_ai_message(self, message: str, context: Optional[Dict] = None, session_id: Optional[str] = None) -> Optional[Dict]:
         """AI 채팅 메시지 전송"""
         data = {"message": message}
         if context:
             data["context"] = context
+        if session_id:
+            data["session_id"] = session_id
+        
+        # user_id 추가 (임시로 1로 설정)
+        data["user_id"] = 1
         
         response = self._make_request("POST", "/ai/chat", data)
-        return response["data"] if response and response.get("success") else None
+        return response if response and response.get("success") else None
+    
+    def send_ai_message_stream(self, message: str, context: Optional[Dict] = None, session_id: Optional[str] = None):
+        """AI 채팅 메시지 스트림 전송"""
+        import requests
+        import json
+        
+        data = {"message": message}
+        if context:
+            data["context"] = context
+        if session_id:
+            data["session_id"] = session_id
+        
+        # user_id 추가 (임시로 1로 설정)
+        data["user_id"] = 1
+        
+        url = f"{self.base_url}/ai/chat"
+        headers = self.get_headers()
+        
+        try:
+            response = requests.post(url, json=data, headers=headers, stream=True)
+            
+            if response.status_code == 200:
+                # 스트림 응답 처리 - 백엔드에서 실제 스트림을 보내고 있음
+                current_data = {}
+                
+                for line in response.iter_lines(decode_unicode=True):
+                    if line:
+                        print(f"받은 라인: {repr(line)}")
+                        
+                        # SSE 헤더 처리
+                        if line.startswith('id: '):
+                            current_data['id'] = line[4:]
+                        elif line.startswith('event: '):
+                            current_data['event'] = line[7:]
+                        elif line.startswith('data: '):
+                            json_data = line[6:]  # 'data: ' 제거
+                            if json_data == '[DONE]':
+                                break
+                            
+                            try:
+                                parsed_data = json.loads(json_data)
+                                print(f"파싱된 데이터: {parsed_data}")
+                                
+                                # ai_response가 있으면 바로 전달 (실시간 스트림)
+                                if 'ai_response' in parsed_data:
+                                    yield {'ai_response': parsed_data['ai_response']}
+                                # 시스템 메시지 처리
+                                elif parsed_data.get('status') == 'processing':
+                                    yield {
+                                        'success': True,
+                                        'message': parsed_data.get('message', '처리 중...')
+                                    }
+                                elif parsed_data.get('status') == 'completed':
+                                    yield {
+                                        'success': True,
+                                        'message': parsed_data.get('message', '완료')
+                                    }
+                                else:
+                                    # 기타 메시지
+                                    yield parsed_data
+                            except json.JSONDecodeError:
+                                # JSON이 아닌 경우 텍스트로 처리
+                                yield {'ai_response': json_data}
+                        elif line.startswith('data:'):
+                            json_data = line[5:]  # 'data:' 제거
+                            if json_data == '[DONE]':
+                                break
+                            try:
+                                parsed_data = json.loads(json_data)
+                                # 백엔드에서 보낸 데이터를 그대로 전달
+                                if 'ai_response' in parsed_data:
+                                    yield {'ai_response': parsed_data['ai_response']}
+                                else:
+                                    yield parsed_data
+                            except json.JSONDecodeError:
+                                # JSON이 아닌 경우 텍스트로 처리
+                                yield {'ai_response': json_data}
+                        else:
+                            # 일반 텍스트 라인 처리 (백엔드에서 직접 텍스트를 보내는 경우)
+                            if not line.startswith(('id:', 'event:', 'retry:')):
+                                yield {'ai_response': line}
+            else:
+                st.error(f"스트림 요청 실패: {response.status_code}")
+                return
+                
+        except requests.exceptions.ConnectionError:
+            st.error("서버에 연결할 수 없습니다. 백엔드 서버가 실행 중인지 확인해주세요.")
+        except Exception as e:
+            st.error(f"요청 중 오류가 발생했습니다: {str(e)}")
     
     def analyze_worklife(self, period: str = "week", include_suggestions: bool = True) -> Optional[Dict]:
         """워라밸 분석 요청"""

@@ -16,6 +16,11 @@ def show_ai_assistant():
     if 'chat_history' not in st.session_state:
         st.session_state.chat_history = []
     
+    # 세션 ID 초기화 (사용자별 고유 세션)
+    if 'session_id' not in st.session_state:
+        import uuid
+        st.session_state.session_id = str(uuid.uuid4())
+    
     # AI 어시스턴트 소개
     st.markdown("""
     <div style="background-color: #F0F9FF; border: 1px solid #0EA5E9; border-radius: 8px; padding: 1rem; margin-bottom: 2rem;">
@@ -71,12 +76,26 @@ def show_ai_assistant():
                 </div>
                 """, unsafe_allow_html=True)
             else:
+                # 스트리밍 중인지 확인
+                is_streaming = message.get('is_streaming', False)
+                cursor_style = " |" if is_streaming else ""
+                
+                # JSON 응답인지 확인하고 ai_response만 추출
+                content = message['content']
+                if isinstance(content, str) and content.startswith('{') and '"ai_response"' in content:
+                    try:
+                        import json
+                        parsed = json.loads(content)
+                        content = parsed.get('ai_response', content)
+                    except:
+                        pass  # JSON 파싱 실패 시 원본 사용
+                
                 st.markdown(f"""
                 <div style="text-align: left; margin: 1rem 0;">
                     <div style="background-color: #F3F4F6; color: #1F2937; padding: 0.75rem; 
                                 border-radius: 18px 18px 18px 4px; display: inline-block; max-width: 70%;">
                         <strong>🤖 AI:</strong><br>
-                        {message['content']}
+                        {content}{cursor_style}
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -104,6 +123,8 @@ def show_ai_assistant():
         
         if clear_button:
             st.session_state.chat_history = []
+            import uuid
+            st.session_state.session_id = str(uuid.uuid4())
             st.rerun()
         
         if context_button and user_message:
@@ -165,31 +186,59 @@ def send_message(api_client, message):
         'timestamp': datetime.now().isoformat()
     })
     
-    # AI 응답 요청
+    # AI 응답 요청 (진짜 스트림)
     with st.spinner("AI가 응답을 생성하는 중..."):
-        response = api_client.send_ai_message(message)
-    
-    if response:
-        # AI 응답을 히스토리에 추가
-        ai_response = response.get('response', '죄송합니다. 응답을 생성할 수 없습니다.')
-        st.session_state.chat_history.append({
-            'role': 'assistant',
-            'content': ai_response,
-            'timestamp': datetime.now().isoformat()
-        })
-        
-        # 제안사항이 있으면 표시
-        suggestions = response.get('suggestions', [])
-        if suggestions:
-            suggestion_text = "\n\n**💡 제안사항:**\n"
-            for suggestion in suggestions:
-                suggestion_text += f"- {suggestion.get('content', '')}\n"
+        try:
+            # 스트림 요청으로 시도
+            response_container = st.empty()
+            status_container = st.empty()
             
-            st.session_state.chat_history[-1]['content'] += suggestion_text
-        
-        st.rerun()
-    else:
-        st.error("AI 응답을 받을 수 없습니다. 다시 시도해주세요.")
+            # 임시 메시지 생성
+            temp_message = {
+                'role': 'assistant',
+                'content': '',
+                'timestamp': datetime.now().isoformat(),
+                'is_streaming': True
+            }
+            st.session_state.chat_history.append(temp_message)
+            
+            # 스트림 처리
+            ai_response_content = ""
+            system_message = ""
+            session_id = st.session_state.session_id
+            
+            for chunk in api_client.send_ai_message_stream(message, session_id=st.session_state.session_id):
+                if chunk:
+                    print(f"받은 청크: {chunk}")
+                    
+                    # 시스템 메시지 처리
+                    if chunk.get('success') is not None:
+                        system_message = chunk.get('message', '')
+                        session_id = chunk.get('session_id', session_id)
+                        if system_message:
+                            status_container.info(f"💬 {system_message}")
+                    
+                    # AI 응답 처리
+                    if 'ai_response' in chunk:
+                        ai_response_content += chunk['ai_response']
+                        st.session_state.chat_history[-1]['content'] = ai_response_content
+                        # 실시간으로 텍스트 표시
+                        response_container.markdown(f"🤖 AI: {ai_response_content}")
+                        # 매 청크마다 화면 업데이트
+                        st.rerun()
+            
+            # 스트리밍 완료
+            st.session_state.chat_history[-1]['is_streaming'] = False
+            
+            # 세션 ID 업데이트
+            if session_id:
+                st.session_state.session_id = session_id
+            
+            st.success("✅ 응답 완료")
+            st.rerun()
+                
+        except Exception as e:
+            st.error(f"요청 중 오류가 발생했습니다: {str(e)}")
 
 def send_message_with_context(api_client, message):
     """컨텍스트를 포함한 메시지 전송"""
@@ -222,28 +271,54 @@ def send_message_with_context(api_client, message):
         'timestamp': datetime.now().isoformat()
     })
     
-    # AI 응답 요청 (컨텍스트 포함)
+    # AI 응답 요청 (컨텍스트 포함, 실제 스트림)
     with st.spinner("AI가 컨텍스트를 분석하여 응답을 생성하는 중..."):
-        response = api_client.send_ai_message(message, context)
-    
-    if response:
-        # AI 응답을 히스토리에 추가
-        ai_response = response.get('response', '죄송합니다. 응답을 생성할 수 없습니다.')
-        st.session_state.chat_history.append({
-            'role': 'assistant',
-            'content': ai_response,
-            'timestamp': datetime.now().isoformat()
-        })
-        
-        # 제안사항이 있으면 표시
-        suggestions = response.get('suggestions', [])
-        if suggestions:
-            suggestion_text = "\n\n**💡 제안사항:**\n"
-            for suggestion in suggestions:
-                suggestion_text += f"- {suggestion.get('content', '')}\n"
+        try:
+            # 스트림 요청으로 시도
+            response_container = st.empty()
+            status_container = st.empty()
             
-            st.session_state.chat_history[-1]['content'] += suggestion_text
-        
-        st.rerun()
-    else:
-        st.error("AI 응답을 받을 수 없습니다. 다시 시도해주세요.")
+            # 임시 메시지 생성
+            temp_message = {
+                'role': 'assistant',
+                'content': '',
+                'timestamp': datetime.now().isoformat(),
+                'is_streaming': True
+            }
+            st.session_state.chat_history.append(temp_message)
+            
+            # 스트림 처리
+            ai_response_content = ""
+            system_message = ""
+            session_id = st.session_state.session_id
+            
+            for chunk in api_client.send_ai_message_stream(message, context, st.session_state.session_id):
+                if chunk:
+                    # 시스템 메시지 처리
+                    if chunk.get('success') is not None:
+                        system_message = chunk.get('message', '')
+                        session_id = chunk.get('session_id', session_id)
+                        if system_message:
+                            status_container.info(f"💬 {system_message}")
+                    
+                    # AI 응답 처리
+                    if 'ai_response' in chunk:
+                        ai_response_content += chunk['ai_response']
+                        st.session_state.chat_history[-1]['content'] = ai_response_content
+                        # 실시간으로 텍스트 표시
+                        response_container.markdown(f"🤖 AI: {ai_response_content}")
+                        # 매 청크마다 화면 업데이트
+                        st.rerun()
+            
+            # 스트리밍 완료
+            st.session_state.chat_history[-1]['is_streaming'] = False
+            
+            # 세션 ID 업데이트
+            if session_id:
+                st.session_state.session_id = session_id
+            
+            st.success("✅ 응답 완료")
+            st.rerun()
+                
+        except Exception as e:
+            st.error(f"요청 중 오류가 발생했습니다: {str(e)}")
