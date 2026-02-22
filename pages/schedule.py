@@ -44,8 +44,13 @@ def show_schedule():
     
     # 새 일정 추가 버튼
     if st.button("➕ 새 일정 추가", use_container_width=True):
-        st.session_state.show_schedule_form = True
-    
+        st.session_state.show_schedule_form = not st.session_state.get('show_schedule_form', False)
+        st.rerun()
+
+    # 새 일정 폼 (버튼 바로 아래)
+    if st.session_state.get('show_schedule_form'):
+        show_schedule_form(api_client, selected_date if view_type != "주간 뷰" else date.today())
+
     # 스케줄 데이터 로딩
     with st.spinner("일정을 불러오는 중..."):
         if view_type == "주간 뷰":
@@ -63,9 +68,6 @@ def show_schedule():
     else:
         show_list_view(schedules, api_client)
     
-    # 새 일정 폼
-    if st.session_state.get('show_schedule_form'):
-        show_schedule_form(api_client, selected_date if view_type != "주간 뷰" else date.today())
 
 def show_week_view(schedules, week_start, api_client):
     """주간 뷰 표시"""
@@ -79,7 +81,8 @@ def show_week_view(schedules, week_start, api_client):
     
     for schedule in schedules:
         try:
-            start_time = datetime.fromisoformat(schedule.get('start_time', '').replace('Z', '+00:00'))
+            starts_at = schedule.get('starts_at', '') or schedule.get('start_time', '')
+            start_time = datetime.fromisoformat(starts_at.replace('Z', '+00:00'))
             schedule_date = start_time.date()
             if schedule_date in week_schedules:
                 week_schedules[schedule_date].append(schedule)
@@ -94,13 +97,8 @@ def show_week_view(schedules, week_start, api_client):
         with cols[i]:
             # 날짜 헤더
             is_today = day_date == date.today()
-            header_style = "background-color: #FF2D20; color: white;" if is_today else ""
-            st.markdown(f"""
-            <div style="text-align: center; padding: 0.5rem; {header_style} border-radius: 4px; margin-bottom: 0.5rem;">
-                <strong>{days[i]}</strong><br>
-                <small>{day_date.strftime('%m/%d')}</small>
-            </div>
-            """, unsafe_allow_html=True)
+            header_style = "background-color: #3B82F6; color: #FFFFFF;" if is_today else "background-color: var(--bg-secondary); color: var(--text-primary);"
+            st.markdown(f'<div style="text-align: center; padding: 0.5rem; {header_style} border: 1px solid var(--border); border-radius: 4px; margin-bottom: 0.5rem;"><strong>{days[i]}</strong><br><small>{day_date.strftime("%m/%d")}</small></div>', unsafe_allow_html=True)
             
             # 해당 날짜의 일정들
             for schedule in day_schedules:
@@ -112,13 +110,14 @@ def show_day_view(schedules, selected_date, api_client):
     
     if schedules:
         # 시간순 정렬
-        schedules.sort(key=lambda x: x.get('start_time', ''))
-        
+        schedules.sort(key=lambda x: x.get('starts_at', '') or x.get('start_time', ''))
+
         # 시간대별 그룹화
         time_slots = {}
         for schedule in schedules:
             try:
-                start_time = datetime.fromisoformat(schedule.get('start_time', '').replace('Z', '+00:00'))
+                starts_at = schedule.get('starts_at', '') or schedule.get('start_time', '')
+                start_time = datetime.fromisoformat(starts_at.replace('Z', '+00:00'))
                 hour = start_time.hour
                 if hour not in time_slots:
                     time_slots[hour] = []
@@ -140,8 +139,8 @@ def show_list_view(schedules, api_client):
     
     if schedules:
         # 날짜순 정렬
-        schedules.sort(key=lambda x: x.get('start_time', ''))
-        
+        schedules.sort(key=lambda x: x.get('starts_at', '') or x.get('start_time', ''))
+
         # 필터 옵션
         col1, col2 = st.columns(2)
         with col1:
@@ -173,10 +172,11 @@ def show_list_view(schedules, api_client):
 def show_schedule_card(schedule, api_client, compact=False):
     """일정 카드 표시"""
     schedule_id = schedule.get('id')
-    title = schedule.get('title', '제목 없음')
-    description = schedule.get('description', '')
-    start_time = schedule.get('start_time', '')
-    end_time = schedule.get('end_time', '')
+    task = schedule.get('task')
+    title = task.get('title', '제목 없음') if task else '일정 블록'
+    description = (task.get('description', '') if task else '') or ''
+    start_time = schedule.get('starts_at', '') or schedule.get('start_time', '')
+    end_time = schedule.get('ends_at', '') or schedule.get('end_time', '')
     state = schedule.get('state', 'scheduled')
     source = schedule.get('source', 'user')
     task_id = schedule.get('task_id')
@@ -211,41 +211,25 @@ def show_schedule_card(schedule, api_client, compact=False):
     
     if compact:
         # 컴팩트 모드 (주간 뷰용)
-        st.markdown(f"""
-        <div style="background-color: #F8FAFC; border: 1px solid #E5E7EB; border-radius: 4px; 
-                    padding: 0.5rem; margin-bottom: 0.5rem; border-left: 3px solid {state_color};">
-            <div style="font-size: 0.8rem; font-weight: bold; color: #1F2937;">{state_emoji} {title}</div>
-            <div style="font-size: 0.7rem; color: #6B7280;">{time_str}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        card_html = f'<div class="flandy-card" style="border-radius: 4px; padding: 0.5rem; margin-bottom: 0.5rem; border-left: 3px solid {state_color};"><div style="font-size: 0.8rem; font-weight: bold; color: var(--text-primary);">{state_emoji} {title}</div><div style="font-size: 0.7rem; color: var(--text-secondary);">{time_str}</div></div>'
+        st.markdown(card_html, unsafe_allow_html=True)
     else:
         # 일반 모드
         with st.container():
-            st.markdown(f"""
-            <div class="task-card" style="border-left: 4px solid {state_color}">
-                <div style="display: flex; justify-content: space-between; align-items: start;">
-                    <div style="flex: 1;">
-                        <h4 style="margin: 0; color: #1F2937;">{state_emoji} {title}</h4>
-                        <p style="margin: 0.5rem 0; color: #6B7280; font-size: 0.9rem;">{description}</p>
-                        <div style="display: flex; gap: 1rem; font-size: 0.8rem; color: #6B7280;">
-                            <span>⏰ {time_str}</span>
-                            <span>📅 {date_str}</span>
-                            <span>{source_emoji} {source}</span>
-                            {f'<span>🔗 태스크 #{task_id}</span>' if task_id else ''}
-                        </div>
-                    </div>
-                    <div style="display: flex; gap: 0.5rem;">
-            """, unsafe_allow_html=True)
-            
+            desc_html = f'<p style="margin: 0.5rem 0; font-size: 0.9rem;">{description}</p>' if description.strip() else ''
+            task_link = f'<span>🔗 태스크 #{task_id}</span>' if task_id else ''
+            card_html = f'<div class="flandy-card" style="border-left: 4px solid {state_color};"><h4 style="margin: 0;">{state_emoji} {title}</h4>{desc_html}<div style="display: flex; gap: 1rem; font-size: 0.8rem; color: var(--text-secondary);"><span>⏰ {time_str}</span><span>📅 {date_str}</span><span>{source_emoji} {source}</span>{task_link}</div></div>'
+            st.markdown(card_html, unsafe_allow_html=True)
+
             # 액션 버튼들
             col1, col2, col3 = st.columns([1, 1, 1])
-            
+
             with col1:
                 if st.button("✏️", key=f"edit_schedule_{schedule_id}", help="수정"):
                     st.session_state.edit_schedule_id = schedule_id
                     st.session_state.show_schedule_form = True
                     st.rerun()
-            
+
             with col2:
                 if state != 'completed':
                     if st.button("✅", key=f"complete_schedule_{schedule_id}", help="완료"):
@@ -254,7 +238,7 @@ def show_schedule_card(schedule, api_client, compact=False):
                             st.rerun()
                         else:
                             st.error("일정 완료 처리에 실패했습니다.")
-            
+
             with col3:
                 if st.button("🗑️", key=f"delete_schedule_{schedule_id}", help="삭제"):
                     if api_client.delete_schedule(schedule_id):
@@ -262,8 +246,7 @@ def show_schedule_card(schedule, api_client, compact=False):
                         st.rerun()
                     else:
                         st.error("일정 삭제에 실패했습니다.")
-            
-            st.markdown("</div></div></div>", unsafe_allow_html=True)
+
             st.markdown("---")
 
 def show_schedule_form(api_client, default_date=None):
@@ -284,18 +267,24 @@ def show_schedule_form(api_client, default_date=None):
         schedule_data = {}
     
     with st.form("schedule_form"):
-        title = st.text_input(
-            "일정 제목 *",
-            value=schedule_data.get('title', ''),
-            placeholder="일정을 입력하세요"
+        # 태스크 연결 (선택사항)
+        tasks = api_client.get_tasks()
+        task_options = ["연결 안함"] + [f"{task.get('title', '제목 없음')} (ID: {task.get('id')})" for task in tasks]
+
+        current_task_id = schedule_data.get('task_id')
+        default_idx = 0
+        if current_task_id:
+            for idx, opt in enumerate(task_options):
+                if f"ID: {current_task_id})" in opt:
+                    default_idx = idx
+                    break
+
+        selected_task = st.selectbox(
+            "연결할 태스크",
+            task_options,
+            index=default_idx
         )
-        
-        description = st.text_area(
-            "설명",
-            value=schedule_data.get('description', ''),
-            placeholder="상세 설명을 입력하세요"
-        )
-        
+
         col1, col2 = st.columns(2)
         with col1:
             schedule_date = st.date_input(
@@ -308,36 +297,34 @@ def show_schedule_form(api_client, default_date=None):
                 ["scheduled", "in_progress", "completed", "cancelled"],
                 index=["scheduled", "in_progress", "completed", "cancelled"].index(schedule_data.get('state', 'scheduled'))
             )
-        
+
         col1, col2 = st.columns(2)
         with col1:
+            existing_start = schedule_data.get('starts_at') or schedule_data.get('start_time')
             start_time = st.time_input(
-                "시작 시간",
-                value=datetime.fromisoformat(schedule_data.get('start_time', '')).time() if schedule_data.get('start_time') else datetime.now().time()
+                "시작 시간 *",
+                value=datetime.fromisoformat(existing_start).time() if existing_start else datetime.now().time()
             )
         with col2:
+            existing_end = schedule_data.get('ends_at') or schedule_data.get('end_time')
             end_time = st.time_input(
-                "종료 시간",
-                value=datetime.fromisoformat(schedule_data.get('end_time', '')).time() if schedule_data.get('end_time') else (datetime.now() + timedelta(hours=1)).time()
+                "종료 시간 *",
+                value=datetime.fromisoformat(existing_end).time() if existing_end else (datetime.now() + timedelta(hours=1)).time()
             )
-        
-        # 태스크 연결 (선택사항)
-        tasks = api_client.get_tasks()
-        task_options = ["연결 안함"] + [f"{task.get('title', '제목 없음')} (ID: {task.get('id')})" for task in tasks]
-        
-        selected_task = st.selectbox(
-            "연결할 태스크 (선택사항)",
-            task_options,
-            index=0
+
+        source = st.selectbox(
+            "소스",
+            ["user", "ai", "system"],
+            index=["user", "ai", "system"].index(schedule_data.get('source', 'user'))
         )
-        
+
         col1, col2, col3 = st.columns([1, 1, 1])
         with col1:
             submit = st.form_submit_button("저장", use_container_width=True)
         with col2:
             cancel = st.form_submit_button("취소", use_container_width=True)
-        
-        if submit and title:
+
+        if submit:
             # 태스크 ID 추출
             task_id = None
             if selected_task != "연결 안함":
@@ -354,10 +341,8 @@ def show_schedule_form(api_client, default_date=None):
                 # 수정
                 if api_client.update_schedule(
                     schedule_id,
-                    title=title,
-                    description=description,
-                    start_time=start_datetime.isoformat(),
-                    end_time=end_datetime.isoformat(),
+                    starts_at=start_datetime.isoformat(),
+                    ends_at=end_datetime.isoformat(),
                     state=state,
                     task_id=task_id
                 ):
@@ -371,11 +356,10 @@ def show_schedule_form(api_client, default_date=None):
             else:
                 # 생성
                 if api_client.create_schedule(
-                    title=title,
-                    description=description,
-                    start_time=start_datetime.isoformat(),
-                    end_time=end_datetime.isoformat(),
-                    task_id=task_id
+                    starts_at=start_datetime.isoformat(),
+                    ends_at=end_datetime.isoformat(),
+                    task_id=task_id,
+                    source=source
                 ):
                     st.success("일정이 추가되었습니다!")
                     st.session_state.show_schedule_form = False

@@ -125,7 +125,9 @@ class PlandyAPIClient:
         return response["data"] if response and response.get("success") else []
     
     def create_task(self, title: str, description: str = "", priority: str = "medium",
-                   deadline: Optional[str] = None, labels: List[str] = None) -> bool:
+                   deadline: Optional[str] = None, labels: List[str] = None,
+                   story_points: Optional[int] = None, sprint_id: Optional[int] = None,
+                   assignee_id: Optional[int] = None, team_id: Optional[int] = None) -> bool:
         """태스크 생성"""
         data = {
             "title": title,
@@ -135,7 +137,15 @@ class PlandyAPIClient:
         }
         if deadline:
             data["deadline"] = deadline
-        
+        if story_points is not None:
+            data["story_points"] = story_points
+        if sprint_id is not None:
+            data["sprint_id"] = sprint_id
+        if assignee_id is not None:
+            data["assignee_id"] = assignee_id
+        if team_id is not None:
+            data["team_id"] = team_id
+
         response = self._make_request("POST", "/tasks", data)
         return response and response.get("success")
     
@@ -170,85 +180,39 @@ class PlandyAPIClient:
         response = self._make_request("GET", f"/schedule/date/{date}")
         return response["data"] if response and response.get("success") else []
     
-    def create_schedule(self, title: str, start_time: str, end_time: str,
-                       description: str = "", task_id: Optional[int] = None) -> bool:
+    def create_schedule(self, title: str = "", start_time: str = "", end_time: str = "",
+                       description: str = "", task_id: Optional[int] = None,
+                       starts_at: Optional[str] = None, ends_at: Optional[str] = None,
+                       state: str = "scheduled", source: str = "user") -> bool:
         """스케줄 생성"""
         data = {
-            "title": title,
-            "start_time": start_time,
-            "end_time": end_time,
-            "description": description
+            "starts_at": starts_at or start_time,
+            "ends_at": ends_at or end_time,
+            "source": source,
+            "state": state,
         }
         if task_id:
             data["task_id"] = task_id
-        
+
         response = self._make_request("POST", "/schedule", data)
         return response and response.get("success")
     
     def update_schedule(self, schedule_id: int, **kwargs) -> bool:
         """스케줄 수정"""
+        # 필드명 매핑 (프론트: start_time/end_time → 백엔드: starts_at/ends_at)
+        if 'start_time' in kwargs:
+            kwargs['starts_at'] = kwargs.pop('start_time')
+        if 'end_time' in kwargs:
+            kwargs['ends_at'] = kwargs.pop('end_time')
+        # 백엔드 ScheduleBlock에 없는 필드 제거
+        kwargs.pop('title', None)
+        kwargs.pop('description', None)
         response = self._make_request("PUT", f"/schedule/{schedule_id}", kwargs)
         return response and response.get("success")
     
     def delete_schedule(self, schedule_id: int) -> bool:
         """스케줄 삭제"""
         response = self._make_request("DELETE", f"/schedule/{schedule_id}")
-        return response and response.get("success")
-    
-    # 워라밸 관련 메서드
-    def get_worklife_scores(self) -> List[Dict]:
-        """워라밸 점수 목록 조회"""
-        response = self._make_request("GET", "/worklife/scores")
-        return response["data"] if response and response.get("success") else []
-    
-    def get_worklife_score_by_week(self, week_start: str) -> Optional[Dict]:
-        """특정 주 워라밸 점수 조회"""
-        response = self._make_request("GET", f"/worklife/scores/week/{week_start}")
-        return response["data"] if response and response.get("success") else None
-    
-    def create_worklife_score(self, week_start: str, overall_score: float,
-                             work_score: float, life_score: float,
-                             stress_level: int, satisfaction: int) -> bool:
-        """워라밸 점수 생성"""
-        data = {
-            "week_start": week_start,
-            "overall_score": overall_score,
-            "work_score": work_score,
-            "life_score": life_score,
-            "stress_level": stress_level,
-            "satisfaction": satisfaction
-        }
-        response = self._make_request("POST", "/worklife/scores", data)
-        return response and response.get("success")
-    
-    def get_habit_logs(self, date: Optional[str] = None, habit_type: Optional[str] = None) -> List[Dict]:
-        """습관 로그 조회"""
-        params = []
-        if date:
-            params.append(f"date={date}")
-        if habit_type:
-            params.append(f"habit_type={habit_type}")
-        
-        endpoint = "/worklife/habits"
-        if params:
-            endpoint += "?" + "&".join(params)
-        
-        response = self._make_request("GET", endpoint)
-        return response["data"] if response and response.get("success") else []
-    
-    def create_habit_log(self, habit_type: str, completed: bool, note: str = "") -> bool:
-        """습관 로그 생성"""
-        data = {
-            "habit_type": habit_type,
-            "completed": completed,
-            "note": note
-        }
-        response = self._make_request("POST", "/worklife/habits", data)
-        return response and response.get("success")
-    
-    def update_habit_log(self, habit_id: int, **kwargs) -> bool:
-        """습관 로그 수정"""
-        response = self._make_request("PUT", f"/worklife/habits/{habit_id}", kwargs)
         return response and response.get("success")
     
     # AI 관련 메서드
@@ -259,26 +223,33 @@ class PlandyAPIClient:
             data["context"] = context
         if session_id:
             data["session_id"] = session_id
-        
-        # user_id 추가 (임시로 1로 설정)
-        data["user_id"] = 1
+
+        # user_id: session_state에서 조회
+        data["user_id"] = st.session_state.get('user_info', {}).get('id')
         
         response = self._make_request("POST", "/ai/chat", data)
         return response if response and response.get("success") else None
     
-    def send_ai_message_stream(self, message: str, context: Optional[Dict] = None, session_id: Optional[str] = None):
+    def send_ai_message_stream(self, message: str, context: Optional[Dict] = None, session_id: Optional[str] = None,
+                               user_id=None, team_id=None):
         """AI 채팅 메시지 스트림 전송"""
         import requests
         import json
-        
+
         data = {"message": message}
         if context:
             data["context"] = context
         if session_id:
             data["session_id"] = session_id
-        
-        # user_id 추가 (임시로 1로 설정)
-        data["user_id"] = 1
+
+        # user_id: 파라미터 우선, 없으면 session_state에서 조회
+        if user_id is not None:
+            data["user_id"] = user_id
+        else:
+            data["user_id"] = st.session_state.get('user_info', {}).get('id')
+
+        if team_id is not None:
+            data["team_id"] = team_id
         
         url = f"{self.base_url}/ai/chat"
         headers = self.get_headers()
@@ -287,65 +258,42 @@ class PlandyAPIClient:
             response = requests.post(url, json=data, headers=headers, stream=True)
             
             if response.status_code == 200:
-                # 스트림 응답 처리 - 백엔드에서 실제 스트림을 보내고 있음
-                current_data = {}
-                
+                current_event = ''
+                ai_response_received = False
+
                 for line in response.iter_lines(decode_unicode=True):
-                    if line:
-                        print(f"받은 라인: {repr(line)}")
-                        
-                        # SSE 헤더 처리
-                        if line.startswith('id: '):
-                            current_data['id'] = line[4:]
-                        elif line.startswith('event: '):
-                            current_data['event'] = line[7:]
-                        elif line.startswith('data: '):
-                            json_data = line[6:]  # 'data: ' 제거
-                            if json_data == '[DONE]':
-                                break
-                            
-                            try:
-                                parsed_data = json.loads(json_data)
-                                print(f"파싱된 데이터: {parsed_data}")
-                                
-                                # ai_response가 있으면 바로 전달 (실시간 스트림)
-                                if 'ai_response' in parsed_data:
-                                    yield {'ai_response': parsed_data['ai_response']}
-                                # 시스템 메시지 처리
-                                elif parsed_data.get('status') == 'processing':
-                                    yield {
-                                        'success': True,
-                                        'message': parsed_data.get('message', '처리 중...')
-                                    }
-                                elif parsed_data.get('status') == 'completed':
-                                    yield {
-                                        'success': True,
-                                        'message': parsed_data.get('message', '완료')
-                                    }
-                                else:
-                                    # 기타 메시지
-                                    yield parsed_data
-                            except json.JSONDecodeError:
-                                # JSON이 아닌 경우 텍스트로 처리
-                                yield {'ai_response': json_data}
-                        elif line.startswith('data:'):
-                            json_data = line[5:]  # 'data:' 제거
-                            if json_data == '[DONE]':
-                                break
-                            try:
-                                parsed_data = json.loads(json_data)
-                                # 백엔드에서 보낸 데이터를 그대로 전달
-                                if 'ai_response' in parsed_data:
-                                    yield {'ai_response': parsed_data['ai_response']}
-                                else:
-                                    yield parsed_data
-                            except json.JSONDecodeError:
-                                # JSON이 아닌 경우 텍스트로 처리
-                                yield {'ai_response': json_data}
-                        else:
-                            # 일반 텍스트 라인 처리 (백엔드에서 직접 텍스트를 보내는 경우)
-                            if not line.startswith(('id:', 'event:', 'retry:')):
-                                yield {'ai_response': line}
+                    if not line:
+                        continue
+
+                    if line.startswith('id: '):
+                        pass
+                    elif line.startswith('event: '):
+                        current_event = line[7:]
+                    elif line.startswith('retry:'):
+                        pass
+                    elif line.startswith('data: ') or line.startswith('data:'):
+                        json_data = line[6:] if line.startswith('data: ') else line[5:]
+                        if json_data == '[DONE]':
+                            break
+
+                        try:
+                            parsed_data = json.loads(json_data)
+                        except json.JSONDecodeError:
+                            continue
+
+                        # ai_response 이벤트에서만 응답 yield (complete 이벤트의 중복 방지)
+                        if current_event == 'ai_response' and 'ai_response' in parsed_data:
+                            if not ai_response_received:
+                                ai_response_received = True
+                                yield {'ai_response': parsed_data['ai_response']}
+                        elif current_event == 'complete' and not ai_response_received:
+                            # ai_response 이벤트가 없었을 때만 complete에서 가져옴
+                            if parsed_data.get('ai_response'):
+                                yield {'ai_response': parsed_data['ai_response']}
+
+                        # session_id 전달
+                        if parsed_data.get('session_id'):
+                            yield {'session_id': parsed_data['session_id']}
             else:
                 st.error(f"스트림 요청 실패: {response.status_code}")
                 return
@@ -355,15 +303,12 @@ class PlandyAPIClient:
         except Exception as e:
             st.error(f"요청 중 오류가 발생했습니다: {str(e)}")
     
-    def analyze_worklife(self, period: str = "week", include_suggestions: bool = True) -> Optional[Dict]:
-        """워라밸 분석 요청"""
-        data = {
-            "period": period,
-            "include_suggestions": include_suggestions
-        }
-        response = self._make_request("POST", "/ai/analyze-worklife", data)
-        return response["data"] if response and response.get("success") else None
-    
+    def request_schedule_optimization(self, date: str) -> Optional[Dict]:
+        """일정 최적화 요청"""
+        data = {"date": date}
+        response = self._make_request("POST", "/ai/optimize-schedule", data)
+        return response if response and response.get("success") else None
+
     def reschedule_request(self, task_id: int, reason: str) -> Optional[Dict]:
         """스케줄 재조정 요청"""
         data = {
@@ -373,6 +318,96 @@ class PlandyAPIClient:
         response = self._make_request("POST", "/ai/reschedule", data)
         return response["data"] if response and response.get("success") else None
     
+    # 팀 관련 메서드
+    def get_teams(self) -> List[Dict]:
+        """팀 목록 조회"""
+        response = self._make_request("GET", "/teams")
+        return response["data"] if response and response.get("success") else []
+
+    def create_team(self, name: str, description: str = "") -> Optional[Dict]:
+        """팀 생성"""
+        data = {"name": name, "description": description}
+        response = self._make_request("POST", "/teams", data)
+        return response["data"] if response and response.get("success") else None
+
+    def get_team(self, team_id: int) -> Optional[Dict]:
+        """팀 상세 조회"""
+        response = self._make_request("GET", f"/teams/{team_id}")
+        return response["data"] if response and response.get("success") else None
+
+    def update_team(self, team_id: int, data: Dict) -> bool:
+        """팀 정보 수정"""
+        response = self._make_request("PUT", f"/teams/{team_id}", data)
+        return response and response.get("success")
+
+    def delete_team(self, team_id: int) -> bool:
+        """팀 삭제"""
+        response = self._make_request("DELETE", f"/teams/{team_id}")
+        return response and response.get("success")
+
+    def join_team(self, invite_code: str) -> Optional[Dict]:
+        """초대 코드로 팀 참여"""
+        data = {"invite_code": invite_code}
+        response = self._make_request("POST", "/teams/join", data)
+        return response["data"] if response and response.get("success") else None
+
+    def leave_team(self, team_id: int) -> bool:
+        """팀 탈퇴"""
+        response = self._make_request("POST", f"/teams/{team_id}/leave")
+        return response and response.get("success")
+
+    def update_member_role(self, team_id: int, member_id: int, role: str) -> bool:
+        """팀 멤버 역할 변경"""
+        data = {"role": role}
+        response = self._make_request("PUT", f"/teams/{team_id}/members/{member_id}", data)
+        return response and response.get("success")
+
+    def remove_member(self, team_id: int, member_id: int) -> bool:
+        """팀 멤버 제거"""
+        response = self._make_request("DELETE", f"/teams/{team_id}/members/{member_id}")
+        return response and response.get("success")
+
+    # 스프린트 관련 메서드
+    def get_sprints(self, team_id: int) -> List[Dict]:
+        """스프린트 목록 조회"""
+        response = self._make_request("GET", f"/teams/{team_id}/sprints")
+        return response["data"] if response and response.get("success") else []
+
+    def create_sprint(self, team_id: int, data: Dict) -> Optional[Dict]:
+        """스프린트 생성"""
+        response = self._make_request("POST", f"/teams/{team_id}/sprints", data)
+        return response["data"] if response and response.get("success") else None
+
+    def get_sprint(self, sprint_id: int) -> Optional[Dict]:
+        """스프린트 상세 조회"""
+        response = self._make_request("GET", f"/sprints/{sprint_id}")
+        return response["data"] if response and response.get("success") else None
+
+    def update_sprint(self, sprint_id: int, data: Dict) -> bool:
+        """스프린트 수정"""
+        response = self._make_request("PUT", f"/sprints/{sprint_id}", data)
+        return response and response.get("success")
+
+    def delete_sprint(self, sprint_id: int) -> bool:
+        """스프린트 삭제"""
+        response = self._make_request("DELETE", f"/sprints/{sprint_id}")
+        return response and response.get("success")
+
+    def activate_sprint(self, sprint_id: int) -> bool:
+        """스프린트 활성화"""
+        response = self._make_request("POST", f"/sprints/{sprint_id}/activate")
+        return response and response.get("success")
+
+    def complete_sprint(self, sprint_id: int) -> bool:
+        """스프린트 완료"""
+        response = self._make_request("POST", f"/sprints/{sprint_id}/complete")
+        return response and response.get("success")
+
+    def get_sprint_dashboard(self, sprint_id: int) -> Optional[Dict]:
+        """스프린트 대시보드 조회"""
+        response = self._make_request("GET", f"/sprints/{sprint_id}/dashboard")
+        return response["data"] if response and response.get("success") else None
+
     # 시스템 관련 메서드
     def health_check(self) -> bool:
         """서버 상태 확인"""

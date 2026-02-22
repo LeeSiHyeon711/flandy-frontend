@@ -28,7 +28,7 @@ try:
     from pages.dashboard import show_dashboard
     from pages.tasks import show_tasks
     from pages.schedule import show_schedule
-    from pages.worklife import show_worklife
+    from pages.team import show_team
     from pages.ai_assistant import show_ai_assistant
     from components.auth import check_auth_status
 except ImportError as e:
@@ -39,51 +39,15 @@ except ImportError as e:
 
 # 페이지 설정
 st.set_page_config(
-    page_title="Plandy - AI 생산성 관리",
+    page_title="Flandy - 팀 스프린트 도우미",
     page_icon="assets/plandy-icon.png",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# 커스텀 CSS 스타일
-st.markdown("""
-<style>
-    .main-header {
-        font-size: 2.5rem;
-        font-weight: bold;
-        color: #FF2D20;
-        text-align: center;
-        margin-bottom: 2rem;
-    }
-    .task-card {
-        border: 1px solid #E5E7EB;
-        border-radius: 8px;
-        padding: 1rem;
-        margin-bottom: 1rem;
-        background-color: #F9FAFB;
-    }
-    .metric-card {
-        background-color: #F8FAFC;
-        padding: 1rem;
-        border-radius: 8px;
-        border-left: 4px solid #FF2D20;
-    }
-    .success-message {
-        background-color: #D1FAE5;
-        color: #065F46;
-        padding: 0.75rem;
-        border-radius: 6px;
-        border: 1px solid #A7F3D0;
-    }
-    .error-message {
-        background-color: #FEE2E2;
-        color: #991B1B;
-        padding: 0.75rem;
-        border-radius: 6px;
-        border: 1px solid #FECACA;
-    }
-</style>
-""", unsafe_allow_html=True)
+# 테마 CSS 적용
+from utils.styling import apply_custom_css
+apply_custom_css()
 
 def main():
     # 사이드바에서 페이지 선택
@@ -97,14 +61,14 @@ def main():
         return
     
     # 선택된 페이지에 따라 콘텐츠 표시
-    if selected_page == "대시보드":
+    if selected_page == "스프린트 대시보드":
         show_dashboard()
     elif selected_page == "태스크 관리":
         show_tasks()
     elif selected_page == "스케줄 관리":
         show_schedule()
-    elif selected_page == "워라밸 분석":
-        show_worklife()
+    elif selected_page == "팀 관리":
+        show_team()
     elif selected_page == "AI 어시스턴트":
         show_ai_assistant()
     elif selected_page is None:

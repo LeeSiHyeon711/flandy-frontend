@@ -210,19 +210,11 @@ def validate_password(password: str) -> Dict[str, Any]:
 
 def show_success_message(message: str):
     """성공 메시지 표시"""
-    st.markdown(f"""
-    <div class="success-message">
-        ✅ {message}
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f'<div class="success-message">✅ {message}</div>', unsafe_allow_html=True)
 
 def show_error_message(message: str):
     """에러 메시지 표시"""
-    st.markdown(f"""
-    <div class="error-message">
-        ❌ {message}
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f'<div class="error-message">❌ {message}</div>', unsafe_allow_html=True)
 
 def show_warning_message(message: str):
     """경고 메시지 표시"""

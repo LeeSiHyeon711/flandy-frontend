@@ -3,25 +3,72 @@
 앱에서 사용하는 상수들을 정의
 """
 
-# 색상 팔레트 (플랜디 테마)
-COLOR_MAP = {
-    "업무": "#4A90E2",      # 플랜디 메인 블루
-    "휴식": "#6BCF7F",      # 플랜디 블루와 조화되는 그린
-    "개인": "#FF8A65",      # 플랜디 블루와 조화되는 오렌지
-    "운동": "#4FC3F7",      # 플랜디 블루 계열 라이트 블루
-    "학습": "#81C784",      # 플랜디 블루와 조화되는 라이트 그린
-    "기타": "#B0BEC5"       # 플랜디 블루와 조화되는 그레이
+# 다크 테마 팔레트
+THEME_DARK = {
+    "bg_primary": "#0F172A",
+    "bg_secondary": "#1E293B",
+    "bg_tertiary": "#334155",
+    "text_primary": "#F1F5F9",
+    "text_secondary": "#94A3B8",
+    "text_muted": "#64748B",
+    "accent": "#3B82F6",
+    "accent_hover": "#2563EB",
+    "border": "#334155",
+    "success": "#22C55E",
+    "warning": "#F59E0B",
+    "danger": "#EF4444",
+    "info": "#3B82F6",
 }
 
-# 워라벨 점수 기준
-IDEAL_WORK_RATIO = 0.6
-IDEAL_REST_RATIO = 0.4
+# 라이트 테마 팔레트
+THEME_LIGHT = {
+    "bg_primary": "#FFFFFF",
+    "bg_secondary": "#F1F5F9",
+    "bg_tertiary": "#E2E8F0",
+    "text_primary": "#0F172A",
+    "text_secondary": "#475569",
+    "text_muted": "#94A3B8",
+    "accent": "#2563EB",
+    "accent_hover": "#1D4ED8",
+    "border": "#CBD5E1",
+    "success": "#16A34A",
+    "warning": "#D97706",
+    "danger": "#DC2626",
+    "info": "#2563EB",
+}
+
+# 하위 호환 alias
+COLORS = THEME_DARK
+
+# 상태별 색상 (테마 불변)
+STATUS_COLORS = {
+    "pending": "#94A3B8",
+    "in_progress": "#3B82F6",
+    "completed": "#22C55E",
+    "cancelled": "#EF4444",
+}
+
+# 우선순위 색상 (테마 불변)
+PRIORITY_COLORS = {
+    "low": "#10B981",
+    "medium": "#F59E0B",
+    "high": "#F97316",
+    "urgent": "#EF4444",
+}
+
+# 카테고리 색상 (테마 불변)
+CATEGORY_COLORS = {
+    "업무": "#3B82F6",
+    "휴식": "#22C55E",
+    "개인": "#F59E0B",
+    "운동": "#06B6D4",
+    "학습": "#8B5CF6",
+    "기타": "#64748B",
+}
 
 # 차트 설정
 CHART_WIDTH = 600
 CHART_HEIGHT = 600
-GAUGE_HEIGHT = 250
-PIE_HEIGHT = 250
 
 # 사이드바 설정
 SIDEBAR_WIDTH = 300
@@ -29,11 +76,3 @@ LOGO_WIDTH = 180
 
 # 자동 새로고침 간격 (초)
 AUTO_REFRESH_INTERVAL = 5
-
-# 대화방 목록
-CONVERSATIONS = [
-    {"name": "📅 일정 관리", "last_msg": "오늘 일정을 확인해주세요", "clicked": True},
-    {"name": "⚖️ 워라벨 상담", "last_msg": "워라벨 점수를 개선해보세요", "clicked": False},
-    {"name": "🎯 목표 설정", "last_msg": "이번 주 목표를 설정해보세요", "clicked": False},
-    {"name": "📊 분석 리포트", "last_msg": "주간 리포트를 확인하세요", "clicked": False}
-]
